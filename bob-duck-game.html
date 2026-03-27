@@ -42,8 +42,8 @@ const GRASS=0,FOREST=1,PATH=2,WATER=3,BUILDING=4,PARKING=5;
 const MAP=[
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,1,1],
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,1,1],
   [1,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,1],
   [1,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,1],
   [1,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,1],
@@ -58,11 +58,14 @@ const MAP=[
   [1,0,5,4,4,4,5,5,5,5,5,5,5,5,5,4,4,4,4,4,5,5,5,0,0,1],
   [1,0,5,4,4,4,5,5,5,5,5,5,5,5,5,4,4,4,4,4,5,5,5,0,0,1],
   [1,0,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,4,4,0,0,0,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,4,4,0,0,0,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
+// LEGEND: col22-23 rows2-3 = Lake Shop (BUILDING)
+// col2-3 rows18-19 = Pizza Shack (BUILDING)
+// cols7-14 rows18-19 = Pond (WATER)
 function getTile(wx,wy){const tx=Math.floor(wx/TILE),ty=Math.floor(wy/TILE);if(tx<0||ty<0||tx>=MW||ty>=MH)return FOREST;return MAP[ty][tx];}
 function isWall(wx,wy){const t=getTile(wx,wy);return t===FOREST||t===BUILDING||t===WATER;}
 function isForest(wx,wy){return getTile(wx,wy)===FOREST;}
@@ -74,6 +77,12 @@ const keys={};
 addEventListener('keydown',e=>{
   keys[e.key]=true;
   if(['Space','e','E','Enter',' '].includes(e.key)||e.key==='Enter') handleInteract();
+  if(GS==='shop'){
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') handleShopNav(-1);
+    if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') handleShopNav(1);
+    if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') handleShopNav(-3);
+    if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') handleShopNav(3);
+  }
   if(e.key==='f'||e.key==='F') handleDisguise();
   e.preventDefault();
 });
@@ -638,7 +647,10 @@ function drawWorld(camX,camY){
       } else if(t===BUILDING){
         ctx.fillStyle='#999088';ctx.fillRect(px,py,TILE,TILE);
       } else if(t===WATER){
-        ctx.fillStyle='#3a7ab0';ctx.fillRect(px,py,TILE,TILE);
+        const wf=Math.sin(frame*0.03+tx*0.5+ty*0.3)*0.06;
+        ctx.fillStyle=`rgba(${42+wf*20|0},${122+wf*30|0},${180+wf*20|0},1)`;ctx.fillRect(px,py,TILE,TILE);
+        ctx.fillStyle='rgba(255,255,255,0.08)';
+        ctx.fillRect(px+((frame*1+tx*7)%TILE),py,4,TILE);
       }
       // Tile grid (subtle)
       ctx.strokeStyle='rgba(0,0,0,0.05)';ctx.lineWidth=0.5;
@@ -679,6 +691,10 @@ function initDecor(){
   DECOR.push({type:'station',x:17*TILE,y:15*TILE});
   // Campsite store
   DECOR.push({type:'store',x:4*TILE,y:15*TILE});
+  // New buildings
+  DECOR.push({type:'lakeshop',x:22*TILE+24,y:3*TILE});
+  DECOR.push({type:'pizzashack',x:2*TILE+24,y:18*TILE+24});
+  DECOR.push({type:'dock',x:DOCK_X,y:DOCK_Y});
   // Bushes
   for(let i=5;i<=20;i+=3) DECOR.push({type:'bush',x:i*TILE+TILE/2,y:4.4*TILE,seed:i*7});
   for(let i=5;i<=20;i+=3) DECOR.push({type:'bush',x:i*TILE+TILE/2,y:10.6*TILE,seed:i*11});
@@ -788,6 +804,77 @@ function drawBush(x,y,seed){
   }
 }
 
+function drawDock(x,y){
+  // Wooden dock planks extending south over water
+  ctx.fillStyle='#8B5E3C';
+  ctx.beginPath(); ctx.roundRect(x-22,y-8,44,48,3); ctx.fill();
+  ctx.strokeStyle='#5a3010'; ctx.lineWidth=1.5; ctx.stroke();
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(x-20,y-4+i*12); ctx.lineTo(x+20,y-4+i*12); ctx.strokeStyle='#5a3010'; ctx.lineWidth=1; ctx.stroke(); }
+  // Sign
+  ctx.fillStyle='#f4d06a'; ctx.beginPath(); ctx.roundRect(x-24,y-28,48,18,3); ctx.fill();
+  ctx.strokeStyle='#8B5E3C'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#3a1a00'; ctx.font='bold 8px Arial'; ctx.textAlign='center'; ctx.fillText('🎣 FISHING',x,y-16); ctx.textAlign='left';
+  // E prompt (always visible near dock)
+  const dp=Math.sin(Date.now()*0.004)*2;
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.roundRect(x-38,y-52+dp,76,16,4); ctx.fill();
+  ctx.fillStyle='#aaddff'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText('🎣 Go Fishing',x,y-41+dp); ctx.textAlign='left';
+  ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.beginPath(); ctx.roundRect(x-9,y-70+dp,18,16,3); ctx.fill();
+  ctx.fillStyle='#333'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('E',x,y-58+dp); ctx.textAlign='left';
+}
+
+function drawLakeShop(x,y){
+  // Small wooden lakeside shop
+  ctx.fillStyle='#6aaa60'; ctx.beginPath(); ctx.roundRect(x-38,y-48,76,60,4); ctx.fill();
+  ctx.strokeStyle='#2a5a20'; ctx.lineWidth=2.5; ctx.stroke();
+  // Roof triangle
+  ctx.beginPath(); ctx.moveTo(x-46,y-48); ctx.lineTo(x,y-82); ctx.lineTo(x+46,y-48); ctx.closePath();
+  ctx.fillStyle='#4a8a40'; ctx.fill(); ctx.strokeStyle='#2a5a20'; ctx.lineWidth=2; ctx.stroke();
+  // Window
+  ctx.fillStyle='rgba(160,220,255,0.7)'; ctx.beginPath(); ctx.roundRect(x-16,y-40,32,22,3); ctx.fill();
+  ctx.strokeStyle='#2a5a20'; ctx.lineWidth=1.5; ctx.stroke();
+  // Sign
+  ctx.fillStyle='#f4d06a'; ctx.beginPath(); ctx.roundRect(x-34,y+4,68,14,3); ctx.fill();
+  ctx.strokeStyle='#8B5E3C'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#3a1a00'; ctx.font='bold 7px Arial'; ctx.textAlign='center'; ctx.fillText('🛒 LAKE SHOP',x,y+14); ctx.textAlign='left';
+  // Door
+  ctx.fillStyle='#5a3010'; ctx.beginPath(); ctx.roundRect(x-10,y-10,20,22,2); ctx.fill();
+  ctx.strokeStyle='#3a1a00'; ctx.lineWidth=1.5; ctx.stroke();
+  // E prompt
+  const dp=Math.sin(Date.now()*0.004+1)*2;
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.roundRect(x-38,y-102+dp,76,16,4); ctx.fill();
+  ctx.fillStyle='#FFD700'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText('🛒 Lake Shop',x,y-91+dp); ctx.textAlign='left';
+  ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.beginPath(); ctx.roundRect(x-9,y-120+dp,18,16,3); ctx.fill();
+  ctx.fillStyle='#333'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('E',x,y-108+dp); ctx.textAlign='left';
+}
+
+function drawPizzaShack(x,y){
+  // Red-and-white striped pizza place
+  ctx.fillStyle='#dd3322'; ctx.beginPath(); ctx.roundRect(x-40,y-52,80,64,4); ctx.fill();
+  ctx.strokeStyle='#881111'; ctx.lineWidth=2.5; ctx.stroke();
+  // Stripe pattern
+  ctx.save(); ctx.beginPath(); ctx.roundRect(x-40,y-52,80,64,4); ctx.clip();
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  for(let i=0;i<8;i++){ ctx.fillRect(x-40+i*20,y-52,10,64); }
+  ctx.restore();
+  // Awning
+  ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.roundRect(x-44,y-58,88,14,3); ctx.fill();
+  ctx.strokeStyle='#cc8800'; ctx.lineWidth=1.5; ctx.stroke();
+  // Sign
+  ctx.fillStyle='white'; ctx.font='bold 8px Arial'; ctx.textAlign='center'; ctx.fillText("🍕 BOB'S PIZZA",x,y-48); ctx.textAlign='left';
+  // Window
+  ctx.fillStyle='rgba(255,230,150,0.7)'; ctx.beginPath(); ctx.roundRect(x-18,y-38,36,22,3); ctx.fill();
+  ctx.strokeStyle='#881111'; ctx.lineWidth=1.5; ctx.stroke();
+  // Door
+  ctx.fillStyle='#882200'; ctx.beginPath(); ctx.roundRect(x-10,y-12,20,24,2); ctx.fill();
+  ctx.strokeStyle='#881111'; ctx.lineWidth=1.5; ctx.stroke();
+  // E prompt
+  const dp=Math.sin(Date.now()*0.004+2)*2;
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.roundRect(x-42,y-100+dp,84,16,4); ctx.fill();
+  ctx.fillStyle='#ff8888'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText("🍕 Bob's Pizza - Work!",x,y-89+dp); ctx.textAlign='left';
+  ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.beginPath(); ctx.roundRect(x-9,y-118+dp,18,16,3); ctx.fill();
+  ctx.fillStyle='#333'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('E',x,y-106+dp); ctx.textAlign='left';
+}
+
 function drawDecorLayer(camX,camY,layer){
   for(const d of DECOR){
     const sx=d.x-camX, sy=d.y-camY;
@@ -811,6 +898,9 @@ function drawDecorLayer(camX,camY,layer){
         }
       }
       if(d.type==='store') drawStore(sx,sy);
+      if(d.type==='lakeshop') drawLakeShop(sx,sy);
+      if(d.type==='pizzashack') drawPizzaShack(sx,sy);
+      if(d.type==='dock') drawDock(sx,sy);
       if(d.type==='store'){
         const dp2=Math.sin(frame*0.07)*2;
         const doorSx=(4*TILE+TILE/2)-camX, doorSy=14*TILE-camY;
@@ -1073,7 +1163,9 @@ class Player{
     this.dir='right'; this.spd=3.2; this.frame=0;
     this.moving=false; this.disguise=null; this.lives=3;
     this.food=0; this.score=0; this.inv=180; this.cflash=0;
-    this.vehicle=null; // currently stolen vehicle
+    this.vehicle=null;
+    this.money=0;       // earned via job/fishing, spent at shop
+    this.speedBoost=false; // bought from shop
   }
   update(){
     this.frame++; if(this.inv>0)this.inv--; if(this.cflash>0)this.cflash--;
@@ -1122,7 +1214,13 @@ const NPCS=[
 ];
 
 // ===== GAME STATE =====
-let GS='menu'; // menu, playing, dialog, caught, win, gameover, indoor
+let GS='menu'; // menu,playing,dialog,caught,win,gameover,indoor,fishing,shop,job
+// Fishing state
+let fishState=null; // null | {phase:'waiting'|'bite'|'reel'|'result', timer:0, fish:null, biteTimer:0}
+// Shop state
+let shopState=null; // null | {selectedIdx:0}
+// Job state
+let jobState=null;  // null | {phase:'idle'|'carrying'|'delivered', pizza:null, targetTent:null, timer:0, earnings:0}
 let indoorBuilding=null; // 'station' | 'store'
 let indoorPlayer={x:320,y:360,dir:'up',frame:0,moving:false};
 let indoorItems=[];   // loot items inside current building
@@ -1164,11 +1262,14 @@ function initGame(){
   ];
   for(const d of DISGUISES) d.taken=false;
   currentHat=null;
+  fishState=null; shopState=null; jobState=null;
   GS='playing';
 }
 
 function handleInteract(){
   if(GS==='indoor'){handleIndoorInteract();return;}
+  if(GS==='fishing'){reelFish();return;}
+  if(GS==='shop'){handleShopBuy();return;}
   if(GS==='menu'){GS='playing';return;}
   if(GS==='dialog'){
     dlgPage++;
@@ -1185,6 +1286,12 @@ function handleInteract(){
   }
   if(GS==='win'||GS==='gameover'){initGame();return;}
   if(GS==='playing'){
+    // Fishing dock
+    if(d2(player.x,player.y,DOCK_X,DOCK_Y)<72){ startFishing(); return; }
+    // Lake shop
+    if(d2(player.x,player.y,SHOP_POS.x,SHOP_POS.y)<80){ openShop(); return; }
+    // Pizza shack — pick up / start job
+    if(d2(player.x,player.y,PIZZA_SHACK.x,PIZZA_SHACK.y)<80){ startJob(); return; }
     // Exit current vehicle
     if(player.vehicle){
       player.vehicle.stolen=false;
@@ -1242,6 +1349,7 @@ function handleInteract(){
 }
 
 function handleDisguise(){
+  if(GS==='shop'){GS='playing';shopState=null;showNotif('Shop closed');return;}
   if(GS!=='playing') return;
   // Vehicle HUD
   if(player.vehicle){
@@ -1276,6 +1384,8 @@ function drawHUD(){
   // Score
   ctx.fillStyle='#aaffaa';ctx.font='bold 13px "Comic Sans MS",cursive';
   ctx.fillText(`Score: ${player.score}`,20,76);
+  ctx.fillStyle='#FFD700'; ctx.font='bold 11px "Comic Sans MS",cursive';
+  ctx.fillText(`💰 $${player.money}`,20,93);
   // Disguise
   // Vehicle HUD
   if(player.vehicle){
@@ -1435,6 +1545,293 @@ function drawDialog(){
   ctx.textAlign='left';
 }
 
+
+// ===== FISHING SYSTEM =====
+const DOCK_X = 7*48+24, DOCK_Y = 18*48; // just north of water
+
+const FISH_TYPES=[
+  {name:'Bluegill',   icon:'🐟', pts:30,  pay:5},
+  {name:'Bass',       icon:'🎣', pts:60,  pay:12},
+  {name:'Catfish',    icon:'🐠', pts:90,  pay:20},
+  {name:'Trophy Trout',icon:'🏆',pts:200, pay:50},
+  {name:'Old Boot',   icon:'👢', pts:5,   pay:0},
+  {name:'Rubber Duck',icon:'🦆', pts:10,  pay:2},
+];
+
+function startFishing(){
+  fishState={phase:'waiting', timer:0, biteTimer:60+Math.random()*180, bobY:0, lineX:0, lineY:0};
+  GS='fishing';
+  showNotif('🎣 Fishing! Wait for a bite, then press E!');
+}
+
+function updateFishing(){
+  if(!fishState) return;
+  fishState.timer++;
+  fishState.bobY = Math.sin(fishState.timer*0.05)*3;
+  if(fishState.phase==='waiting'){
+    fishState.biteTimer--;
+    if(fishState.biteTimer<=0){
+      fishState.phase='bite';
+      fishState.biteTimer=0;
+      fishState.reelWindow=55; // frames to press E
+      fishState.fish=FISH_TYPES[Math.floor(Math.random()*FISH_TYPES.length)];
+    }
+  } else if(fishState.phase==='bite'){
+    fishState.reelWindow--;
+    if(fishState.reelWindow<=0){
+      fishState.phase='miss';
+      fishState.timer=0;
+    }
+  } else if(fishState.phase==='miss'||fishState.phase==='result'){
+    fishState.timer++;
+    if(fishState.timer>90){ exitFishing(); }
+  }
+}
+
+function reelFish(){
+  if(!fishState) return;
+  if(fishState.phase==='bite'){
+    fishState.phase='result';
+    fishState.timer=0;
+    player.score+=fishState.fish.pts;
+    player.money+=fishState.fish.pay;
+    showNotif(`${fishState.fish.icon} Caught ${fishState.fish.name}! +$${fishState.fish.pay}`);
+  } else if(fishState.phase==='waiting'){
+    exitFishing(); // gave up
+  }
+}
+
+function exitFishing(){
+  fishState=null;
+  GS='playing';
+}
+
+function drawFishing(){
+  // Outdoor backdrop still visible, overlay on top
+  const px=player.x-camX, py=player.y-camY;
+  // Dark overlay
+  ctx.fillStyle='rgba(0,30,60,0.55)'; ctx.fillRect(0,0,W,H);
+
+  // Water shimmer
+  for(let i=0;i<6;i++){
+    ctx.fillStyle=`rgba(60,140,220,${0.06+Math.sin(fishState.timer*0.04+i)*0.03})`;
+    ctx.fillRect(0,H*0.5+i*18,W,18);
+  }
+
+  // Bob on dock
+  ctx.save(); ctx.translate(px, py);
+  ctx.scale(0.9,0.9);
+  drawBobDuck(0,0,'down',player.disguise,fishState.timer,false);
+  ctx.restore();
+
+  // Fishing rod
+  const rodX=px+10, rodY=py-20;
+  const lineEndX=px+60+Math.sin(fishState.timer*0.02)*5;
+  const lineEndY=py+80+fishState.bobY;
+  ctx.strokeStyle='#8B4513'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(rodX,rodY); ctx.lineTo(rodX+50,rodY-30); ctx.stroke();
+  ctx.strokeStyle='rgba(200,200,200,0.8)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(rodX+50,rodY-30); ctx.lineTo(lineEndX,lineEndY); ctx.stroke();
+
+  // Bobber
+  const blink = fishState.phase==='bite' ? Math.floor(fishState.timer/4)%2===0 : false;
+  ctx.fillStyle=blink?'#ffff00':'#ff3030';
+  ctx.beginPath(); ctx.arc(lineEndX,lineEndY,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(lineEndX,lineEndY,3,0,Math.PI*2); ctx.fill();
+  // Bob float line
+  ctx.strokeStyle='#4a90d9'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(lineEndX-18,lineEndY+4); ctx.lineTo(lineEndX+18,lineEndY+4); ctx.stroke();
+
+  // UI panel
+  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.beginPath(); ctx.roundRect(W/2-160,30,320,90,10); ctx.fill();
+  ctx.strokeStyle='rgba(100,180,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
+
+  if(fishState.phase==='waiting'){
+    ctx.fillStyle='#aaddff'; ctx.font='bold 16px "Comic Sans MS",cursive'; ctx.textAlign='center';
+    ctx.fillText('🎣 Waiting for a bite...', W/2, 68);
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='12px Arial';
+    ctx.fillText('[E] to give up and leave', W/2, 92);
+    // Patience meter
+    const prog=1-(fishState.biteTimer/240);
+    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.roundRect(W/2-100,98,200,10,5); ctx.fill();
+    ctx.fillStyle='#4af'; ctx.beginPath(); ctx.roundRect(W/2-100,98,200*prog,10,5); ctx.fill();
+  } else if(fishState.phase==='bite'){
+    ctx.fillStyle='#ffff44'; ctx.font='bold 22px "Comic Sans MS",cursive'; ctx.textAlign='center';
+    ctx.fillText('🐟 BITE! Press E!', W/2, 65);
+    // Reel window bar
+    const pct=fishState.reelWindow/55;
+    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.roundRect(W/2-100,80,200,16,5); ctx.fill();
+    ctx.fillStyle=pct>0.4?'#44ff44':'#ff4444';
+    ctx.beginPath(); ctx.roundRect(W/2-100,80,200*pct,16,5); ctx.fill();
+    ctx.fillStyle='white'; ctx.font='bold 10px Arial'; ctx.fillText('REEL IT IN!',W/2,92);
+  } else if(fishState.phase==='result'&&fishState.fish){
+    ctx.fillStyle='#aaffaa'; ctx.font='bold 18px "Comic Sans MS",cursive'; ctx.textAlign='center';
+    ctx.fillText(`${fishState.fish.icon} Caught: ${fishState.fish.name}!`, W/2, 62);
+    ctx.fillStyle='#FFD700'; ctx.font='bold 14px Arial';
+    ctx.fillText(`+${fishState.fish.pts} pts   +$${fishState.fish.pay}`, W/2, 84);
+    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Arial';
+    ctx.fillText('Returning to shore...', W/2, 104);
+  } else if(fishState.phase==='miss'){
+    ctx.fillStyle='#ff8888'; ctx.font='bold 18px "Comic Sans MS",cursive'; ctx.textAlign='center';
+    ctx.fillText('💨 The fish got away!', W/2, 68);
+    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Arial';
+    ctx.fillText('Returning to shore...', W/2, 92);
+  }
+  ctx.textAlign='left';
+
+  // Money HUD
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.beginPath(); ctx.roundRect(10,10,140,36,8); ctx.fill();
+  ctx.fillStyle='#FFD700'; ctx.font='bold 14px "Comic Sans MS",cursive'; ctx.textAlign='left';
+  ctx.fillText(`💰 $${player.money}`, 20, 33);
+}
+
+// ===== SHOP SYSTEM =====
+const SHOP_POS = {x:22*48+48, y:3*48}; // north of lake shop building
+
+const SHOP_ITEMS=[
+  {id:'life',      name:'Extra Life',    icon:'❤️',  cost:40,  desc:'1 more life'},
+  {id:'speed',     name:'Speed Boots',   icon:'👟',  cost:60,  desc:'Permanent speed boost'},
+  {id:'tophat',    name:'Top Hat',       icon:'🎩',  cost:20,  desc:'Disguise'},
+  {id:'beret',     name:'French Beret',  icon:'🥐',  cost:20,  desc:'Disguise'},
+  {id:'partyhat',  name:'Party Hat',     icon:'🎉',  cost:20,  desc:'Disguise'},
+  {id:'bait',      name:'Lucky Bait',    icon:'🪱',  cost:15,  desc:'Fish bite faster'},
+];
+
+function openShop(){
+  shopState={selectedIdx:0};
+  GS='shop';
+  showNotif('🛒 Welcome to the Lake Shop!');
+}
+
+function drawShop(){
+  ctx.fillStyle='rgba(10,20,40,0.88)'; ctx.fillRect(0,0,W,H);
+
+  // Shop header
+  ctx.fillStyle='rgba(255,200,50,0.15)'; ctx.beginPath(); ctx.roundRect(W/2-280,20,560,H-40,16); ctx.fill();
+  ctx.strokeStyle='#FFD700'; ctx.lineWidth=2; ctx.stroke();
+
+  ctx.fillStyle='#FFD700'; ctx.font='bold 22px "Comic Sans MS",cursive'; ctx.textAlign='center';
+  ctx.fillText('🏪 LAKE SHOP', W/2, 60);
+  ctx.fillStyle='#aaddff'; ctx.font='13px Arial';
+  ctx.fillText(`Your money: $${player.money}`, W/2, 82);
+
+  // Items grid
+  const cols=3, iw=160, ih=110, gap=14;
+  const startX=W/2 - (cols*(iw+gap))/2 + gap/2;
+  const startY=100;
+  SHOP_ITEMS.forEach((item,i)=>{
+    const col=i%cols, row=Math.floor(i/cols);
+    const ix=startX+col*(iw+gap), iy=startY+row*(ih+gap);
+    const sel=shopState&&shopState.selectedIdx===i;
+    const canAfford=player.money>=item.cost;
+    ctx.fillStyle=sel?'rgba(255,215,0,0.25)':'rgba(255,255,255,0.07)';
+    ctx.beginPath(); ctx.roundRect(ix,iy,iw,ih,8); ctx.fill();
+    ctx.strokeStyle=sel?'#FFD700':canAfford?'rgba(255,255,255,0.2)':'rgba(255,0,0,0.3)';
+    ctx.lineWidth=sel?2.5:1.5; ctx.stroke();
+    ctx.font='28px Arial'; ctx.textAlign='center'; ctx.fillText(item.icon,ix+iw/2,iy+42);
+    ctx.fillStyle=canAfford?'white':'#888'; ctx.font='bold 11px Arial';
+    ctx.fillText(item.name,ix+iw/2,iy+62);
+    ctx.fillStyle='#aaa'; ctx.font='10px Arial'; ctx.fillText(item.desc,ix+iw/2,iy+78);
+    ctx.fillStyle=canAfford?'#FFD700':'#ff6666'; ctx.font='bold 13px Arial';
+    ctx.fillText(`$${item.cost}`,ix+iw/2,iy+98);
+  });
+
+  // Controls
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Arial'; ctx.textAlign='center';
+  ctx.fillText('← → to browse  |  E to buy  |  F to leave',W/2,H-30);
+  ctx.textAlign='left';
+
+  // Money HUD
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.beginPath(); ctx.roundRect(10,10,140,36,8); ctx.fill();
+  ctx.fillStyle='#FFD700'; ctx.font='bold 14px "Comic Sans MS",cursive';
+  ctx.fillText(`💰 $${player.money}`,20,33);
+}
+
+function handleShopNav(dir){
+  if(!shopState) return;
+  shopState.selectedIdx=(shopState.selectedIdx+dir+SHOP_ITEMS.length)%SHOP_ITEMS.length;
+}
+
+function handleShopBuy(){
+  if(!shopState) return;
+  const item=SHOP_ITEMS[shopState.selectedIdx];
+  if(player.money<item.cost){ showNotif('💸 Not enough money!'); return; }
+  player.money-=item.cost;
+  if(item.id==='life'){ player.lives=Math.min(player.lives+1,5); showNotif('❤️ Extra life!'); }
+  else if(item.id==='speed'){ player.speedBoost=true; player.spd=4.8; showNotif('👟 Speed boost active!'); }
+  else if(item.id==='bait'){ showNotif('🪱 Lucky Bait — fish bite faster!'); player._baitActive=true; }
+  else { player.disguise=item.id; const n={tophat:'Top Hat',beret:'Beret',partyhat:'Party Hat'}; showNotif(`${item.icon} ${n[item.id]} equipped!`); }
+}
+
+// ===== JOB SYSTEM — Pizza Delivery =====
+const PIZZA_SHACK = {x:2*48+48, y:19*48}; // south-west corner
+
+const DELIVERY_TENTS=[5,7,10,12,15,17]; // tent x cols (row 6-9)
+
+function startJob(){
+  if(jobState&&jobState.phase==='carrying'){
+    showNotif('🍕 Already carrying a pizza!'); return;
+  }
+  const tentCol=DELIVERY_TENTS[Math.floor(Math.random()*DELIVERY_TENTS.length)];
+  const tentRow=5+Math.floor(Math.random()*3);
+  jobState={
+    phase:'carrying',
+    pizza:{x:player.x, y:player.y},
+    targetTent:{x:tentCol*48+24, y:tentRow*48+24},
+    timer:0,
+    pay:10+Math.floor(Math.random()*15),
+  };
+  GS='playing';
+  showNotif(`🍕 Pizza picked up! Deliver to the glowing tent!`);
+}
+
+function updateJob(){
+  if(!jobState) return;
+  jobState.timer++;
+  if(jobState.phase==='carrying'){
+    // Move pizza with player
+    jobState.pizza.x=player.x;
+    jobState.pizza.y=player.y-40;
+    // Check delivery
+    const t=jobState.targetTent;
+    if(d2(player.x,player.y,t.x,t.y)<60){
+      player.money+=jobState.pay;
+      player.score+=jobState.pay*5;
+      showNotif(`✅ Delivered! +$${jobState.pay} earned!`);
+      jobState={phase:'idle'};
+      setTimeout(()=>{ if(jobState&&jobState.phase==='idle') jobState=null; },2000);
+    }
+  }
+}
+
+function drawJobOverlay(camX,camY){
+  if(!jobState||jobState.phase!=='carrying') return;
+  const t=jobState.targetTent;
+  const tx=t.x-camX, ty=t.y-camY;
+  // Glowing target circle at delivery tent
+  const pulse=0.5+Math.sin(frame*0.08)*0.5;
+  ctx.strokeStyle=`rgba(255,220,50,${0.4+pulse*0.5})`;
+  ctx.lineWidth=3+pulse*2;
+  ctx.beginPath(); ctx.arc(tx,ty,30+pulse*8,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=`rgba(255,220,50,${0.1+pulse*0.15})`;
+  ctx.beginPath(); ctx.arc(tx,ty,30+pulse*8,0,Math.PI*2); ctx.fill();
+  ctx.font='18px Arial'; ctx.textAlign='center'; ctx.fillText('🍕',tx,ty+7);
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.beginPath(); ctx.roundRect(tx-40,ty-46,80,16,4); ctx.fill();
+  ctx.fillStyle='#FFD700'; ctx.font='bold 9px Arial'; ctx.fillText('DELIVER HERE',tx,ty-35);
+  ctx.textAlign='left';
+  // Arrow pointing to target when off-screen
+  if(tx<0||tx>W||ty<0||ty>H){
+    const ax=Math.max(40,Math.min(W-40,tx)), ay=Math.max(40,Math.min(H-40,ty));
+    const angle=Math.atan2(t.y-(player.y-camY+H/2),t.x-(player.x-camX+W/2));
+    ctx.save(); ctx.translate(ax,ay); ctx.rotate(angle);
+    ctx.fillStyle='rgba(255,220,50,0.9)'; ctx.font='bold 20px Arial'; ctx.textAlign='center';
+    ctx.fillText('➤',0,8); ctx.restore(); ctx.textAlign='left';
+  }
+  // Pizza on Bob's head
+  const px2=player.x-camX, py2=player.y-camY;
+  ctx.font='20px Arial'; ctx.textAlign='center'; ctx.fillText('🍕',px2,py2-52);
+  ctx.textAlign='left';
+}
 
 // ===== INDOOR SYSTEM =====
 
@@ -1756,6 +2153,24 @@ function loop(){
 
   if(GS==='menu'){drawMenu();requestAnimationFrame(loop);return;}
 
+  // Fishing
+  if(GS==='fishing'){
+    updateFishing();
+    drawWorld(camX,camY);
+    drawDecorLayer(camX,camY,'ground');
+    drawDecorLayer(camX,camY,'tall');
+    drawFishing();
+    drawHUD();
+    requestAnimationFrame(loop); return;
+  }
+  // Shop
+  if(GS==='shop'){
+    drawWorld(camX,camY);
+    drawDecorLayer(camX,camY,'ground');
+    drawDecorLayer(camX,camY,'tall');
+    drawShop();
+    requestAnimationFrame(loop); return;
+  }
   // Indoor update + draw
   if(GS==='indoor'){
     updateIndoorPlayer();
@@ -1779,6 +2194,7 @@ function loop(){
     if(GS==='playing') player.update();
     for(const n of NPCS) n.frame++;
     if(GS==='playing'){
+      updateJob();
       const hidden=isForest(player.x,player.y);
       for(const r of rangers){
         const res=r.update(player.x,player.y,!!player.disguise,hidden);
@@ -1832,6 +2248,8 @@ function loop(){
   // Player
   player.draw(camX,camY);
 
+  // Job overlay (delivery arrow + pizza on head)
+  if(GS==='playing') drawJobOverlay(camX,camY);
   // HUD
   if(GS==='playing'||GS==='dialog') drawHUD();
 
