@@ -2394,7 +2394,7 @@ function loop(){
     drawWorld(camX,camY);
     drawDecorLayer(camX,camY,'ground');
     drawDecorLayer(camX,camY,'tall');
-    drawFishing();
+    if(fishState) drawFishing();
     drawHUD();
     requestAnimationFrame(loop); return;
   }
