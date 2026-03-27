@@ -797,7 +797,30 @@ function drawDecorLayer(camX,camY,layer){
       if(d.type==='bicycle') drawBicycle(sx,sy,d.col,false);
       if(d.type==='table') drawTable(sx,sy);
       if(d.type==='station') drawStation(sx,sy);
+      if(d.type==='station'){
+        // Entry prompt near door
+        const dp2=Math.sin(frame*0.07)*2;
+        const doorSx=(17*TILE+TILE/2)-camX, doorSy=17*TILE-camY;
+        if(Math.abs(doorSx-(W/2))<200&&Math.abs(doorSy-(H/2))<200){
+          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.beginPath();ctx.roundRect(doorSx-44,doorSy-38+dp2,88,16,4);ctx.fill();
+          ctx.fillStyle='#FFD700';ctx.font='bold 9px Arial';ctx.textAlign='center';
+          ctx.fillText('🚨 Ranger Station',doorSx,doorSy-27+dp2);ctx.textAlign='left';
+          ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.roundRect(doorSx-8,doorSy-56+dp2,16,15,3);ctx.fill();
+          ctx.fillStyle='#333';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-45+dp2);ctx.textAlign='left';
+        }
+      }
       if(d.type==='store') drawStore(sx,sy);
+      if(d.type==='store'){
+        const dp2=Math.sin(frame*0.07)*2;
+        const doorSx=(4*TILE+TILE/2)-camX, doorSy=17*TILE-camY;
+        if(Math.abs(doorSx-(W/2))<200&&Math.abs(doorSy-(H/2))<200){
+          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.beginPath();ctx.roundRect(doorSx-38,doorSy-38+dp2,76,16,4);ctx.fill();
+          ctx.fillStyle='#FFD700';ctx.font='bold 9px Arial';ctx.textAlign='center';
+          ctx.fillText('🏕️ Camp Store',doorSx,doorSy-27+dp2);ctx.textAlign='left';
+          ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.roundRect(doorSx-8,doorSy-56+dp2,16,15,3);ctx.fill();
+          ctx.fillStyle='#333';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-45+dp2);ctx.textAlign='left';
+        }
+      }
     } else {
       if(d.type==='tree') drawTree(sx,sy,d.seed);
       if(d.type==='tent') drawTent(sx,sy,d.col);
@@ -1097,7 +1120,11 @@ const NPCS=[
 ];
 
 // ===== GAME STATE =====
-let GS='menu'; // menu, playing, dialog, caught, win, gameover
+let GS='menu'; // menu, playing, dialog, caught, win, gameover, indoor
+let indoorBuilding=null; // 'station' | 'store'
+let indoorPlayer={x:320,y:360,dir:'up',frame:0,moving:false};
+let indoorItems=[];   // loot items inside current building
+let indoorRanger=null; // ranger that patrols station interior
 let player=new Player();
 let rangers=[];
 let foods=[];
@@ -1139,6 +1166,7 @@ function initGame(){
 }
 
 function handleInteract(){
+  if(GS==='indoor'){handleIndoorInteract();return;}
   if(GS==='menu'){GS='playing';return;}
   if(GS==='dialog'){
     dlgPage++;
@@ -1191,6 +1219,16 @@ function handleInteract(){
         const n={tophat:'🎩 Top Hat',beret:'🥐 French Beret',partyhat:'🎉 Party Hat'};
         showNotif(`${n[d.type]} equipped!`);return;
       }
+    }
+    // Check building entry
+    // Store door: tile (4,17) center
+    const storeDoor={x:4*TILE+TILE/2,y:17*TILE};
+    const stationDoor={x:17*TILE+TILE/2,y:17*TILE};
+    if(d2(player.x,player.y,storeDoor.x,storeDoor.y)<56){
+      enterBuilding('store'); return;
+    }
+    if(d2(player.x,player.y,stationDoor.x,stationDoor.y)<56){
+      enterBuilding('station'); return;
     }
     // Check NPCs
     for(const n of NPCS){
@@ -1395,12 +1433,344 @@ function drawDialog(){
   ctx.textAlign='left';
 }
 
+
+// ===== INDOOR SYSTEM =====
+
+const INDOOR_W=W, INDOOR_H=H;
+const IT=52; // indoor tile size
+
+// Furniture collision rects [{x,y,w,h}] — room-space coords
+const INDOOR_FURNITURE={
+  store:[
+    {x:40,y:40,w:IT*2,h:IT,label:'shelf'},      // top-left shelf
+    {x:IT*3+20,y:40,w:IT*2,h:IT,label:'shelf'},  // top-center shelf
+    {x:IT*6+10,y:40,w:IT*2,h:IT,label:'shelf'},  // top-right shelf
+    {x:40,y:IT*2+40,w:IT*1.5,h:IT*2,label:'shelf'}, // left wall shelves
+    {x:INDOOR_W-IT*1.5-40,y:IT*2+40,w:IT*1.5,h:IT*2,label:'shelf'}, // right shelves
+    {x:INDOOR_W/2-IT,y:IT*2,w:IT*2,h:IT*3,label:'counter'}, // center display case
+    {x:INDOOR_W-100,y:INDOOR_H-160,w:80,h:60,label:'register'}, // cash register
+  ],
+  station:[
+    {x:INDOOR_W/2-80,y:50,w:160,h:IT,label:'desk'},     // big desk
+    {x:40,y:50,w:IT,h:IT*2,label:'cabinet'},             // filing cabinet L
+    {x:INDOOR_W-IT-40,y:50,w:IT,h:IT*2,label:'cabinet'},// filing cabinet R
+    {x:40,y:IT*3+20,w:IT,h:IT*1.5,label:'locker'},      // locker L
+    {x:INDOOR_W-IT-40,y:IT*3+20,w:IT,h:IT*1.5,label:'locker'}, // locker R
+    {x:INDOOR_W/2-40,y:IT*3,w:80,h:60,label:'table'},   // small table
+  ]
+};
+
+function initIndoorItems(building){
+  indoorItems=[];
+  if(building==='store'){
+    const items=[
+      {id:'smores',x:80,y:80,label:"S'mores Kit",icon:'🔥',pts:120,taken:false},
+      {id:'chips',x:IT*3+60,y:80,label:'Chips Ahoy',icon:'🍪',pts:80,taken:false},
+      {id:'soda',x:IT*6+50,y:80,label:'Soda Crate',icon:'🥤',pts:90,taken:false},
+      {id:'candy',x:60,y:IT*2+80,label:'Candy Bars',icon:'🍫',pts:75,taken:false},
+      {id:'jerky',x:INDOOR_W-IT-30,y:IT*2+80,label:'Beef Jerky',icon:'🥩',pts:85,taken:false},
+      {id:'map',x:INDOOR_W/2,y:IT*2+30,label:'Park Map',icon:'🗺️',pts:200,taken:false},
+    ];
+    indoorItems.push(...items);
+  } else {
+    const items=[
+      {id:'donut',x:INDOOR_W/2-40,y:90,label:'Donuts!',icon:'🍩',pts:150,taken:false},
+      {id:'badge',x:INDOOR_W/2+30,y:95,label:'Ranger Badge',icon:'⭐',pts:300,taken:false},
+      {id:'keys',x:50,y:70,label:'Master Keys',icon:'🔑',pts:250,taken:false},
+      {id:'radio',x:INDOOR_W-IT-30,y:70,label:'Radio',icon:'📻',pts:180,taken:false},
+      {id:'hat',x:IT*3+30,y:IT*3+40,label:'Ranger Hat',icon:'🎩',pts:200,taken:false},
+      {id:'trophy',x:INDOOR_W/2-20,y:IT*3+50,label:'Trophy',icon:'🏆',pts:350,taken:false},
+    ];
+    indoorItems.push(...items);
+  }
+}
+
+function enterBuilding(building){
+  indoorBuilding=building;
+  initIndoorItems(building);
+  indoorPlayer={x:INDOOR_W/2,y:INDOOR_H-100,dir:'up',frame:0,moving:false};
+  // Ranger patrols station interior
+  if(building==='station'){
+    indoorRanger={
+      x:INDOOR_W/2,y:200,dir:'right',frame:0,
+      patrol:[{x:120,y:160},{x:INDOOR_W-120,y:160},{x:INDOOR_W-120,y:280},{x:120,y:280}],
+      pi:0,alert:0,state:'patrol',angle:0,spd:1.4,range:160,
+      lpx:0,lpy:0,stimer:0
+    };
+  } else {
+    indoorRanger=null;
+  }
+  GS='indoor';
+  showNotif(building==='store'?'📦 Camp Store — grab the goods!':'🚨 Ranger Station — be sneaky!');
+}
+
+function updateIndoorRanger(){
+  if(!indoorRanger) return null;
+  const r=indoorRanger;
+  r.frame++;
+  const dx=indoorPlayer.x-r.x, dy=indoorPlayer.y-r.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  const pa=Math.atan2(dy,dx);
+  const adiff=a=>{let d=((a%(Math.PI*2))+Math.PI*2)%(Math.PI*2)-Math.PI;return d;};
+  const angDiff=Math.abs(adiff(r.angle-pa));
+  const canSee=dist<r.range&&angDiff<Math.PI/2.5;
+  if(canSee){ r.alert=Math.min(1,r.alert+0.018); r.lpx=indoorPlayer.x; r.lpy=indoorPlayer.y; }
+  else r.alert=Math.max(0,r.alert-0.005);
+  if(r.alert>0.7){
+    // Chase
+    const td=Math.sqrt((r.lpx-r.x)**2+(r.lpy-r.y)**2);
+    if(td>6){ r.x+=(r.lpx-r.x)/td*r.spd*2.2; r.y+=(r.lpy-r.y)/td*r.spd*2.2; r.angle=Math.atan2(r.lpy-r.y,r.lpx-r.x); }
+    else{ r.stimer++; if(r.stimer>100){r.alert=0;r.state='patrol';r.stimer=0;} }
+  } else {
+    // Patrol
+    const tgt=r.patrol[r.pi];
+    const tdx=tgt.x-r.x, tdy=tgt.y-r.y, td=Math.sqrt(tdx*tdx+tdy*tdy);
+    if(td<8) r.pi=(r.pi+1)%r.patrol.length;
+    else { r.x+=tdx/td*r.spd; r.y+=tdy/td*r.spd; r.angle=Math.atan2(tdy,tdx); }
+    r.dir=Math.abs(tdx)>Math.abs(tdy)?(tdx>0?'right':'left'):(tdy>0?'down':'up');
+  }
+  if(dist<36&&r.alert>0.5) return 'caught';
+  return null;
+}
+
+function updateIndoorPlayer(){
+  const ip=indoorPlayer;
+  ip.frame++; if(ip.inv>0) ip.inv--;
+  let dx=0,dy=0;
+  if(keys['ArrowLeft']||keys['a']||keys['A']){dx=-1;ip.dir='left';}
+  if(keys['ArrowRight']||keys['d']||keys['D']){dx=1;ip.dir='right';}
+  if(keys['ArrowUp']||keys['w']||keys['W']){dy=-1;ip.dir='up';}
+  if(keys['ArrowDown']||keys['s']||keys['S']){dy=1;ip.dir='down';}
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  ip.moving=!!(dx||dy);
+  const spd=3.0;
+  const furn=INDOOR_FURNITURE[indoorBuilding]||[];
+  const R=18; // player collision radius
+  const nx=ip.x+dx*spd, ny=ip.y+dy*spd;
+  // Wall bounds
+  const minX=R+30, maxX=INDOOR_W-R-30, minY=R+30, maxY=INDOOR_H-R-30;
+  let bx=Math.max(minX,Math.min(maxX,nx));
+  let by=Math.max(minY,Math.min(maxY,ny));
+  // Furniture collision
+  for(const f of furn){
+    const pad=6;
+    const fl=f.x-pad,fr=f.x+f.w+pad,ft=f.y-pad,fb=f.y+f.h+pad;
+    if(bx>fl&&bx<fr&&by>ft&&by<fb){
+      // Push out on shortest axis
+      const ol=bx-fl,or2=fr-bx,ot=by-ft,ob=fb-by;
+      const min=Math.min(ol,or2,ot,ob);
+      if(min===ol) bx=fl;
+      else if(min===or2) bx=fr;
+      else if(min===ot) by=ft;
+      else by=fb;
+    }
+  }
+  ip.x=bx; ip.y=by;
+}
+
+function drawIndoorRoom(){
+  const bld=indoorBuilding;
+  // Floor
+  const floorCol=bld==='store'?'#d4b896':'#c8c0a8';
+  ctx.fillStyle=floorCol; ctx.fillRect(0,0,INDOOR_W,INDOOR_H);
+  // Floor planks
+  ctx.strokeStyle=bld==='store'?'rgba(160,120,60,0.25)':'rgba(150,140,120,0.2)';
+  ctx.lineWidth=1;
+  for(let fy=0;fy<INDOOR_H;fy+=28){ ctx.beginPath();ctx.moveTo(0,fy);ctx.lineTo(INDOOR_W,fy);ctx.stroke(); }
+  for(let fx=0;fx<INDOOR_W;fx+=64){ ctx.beginPath();ctx.moveTo(fx,0);ctx.lineTo(fx,INDOOR_H);ctx.stroke(); }
+  // Walls
+  const wallCol=bld==='store'?'#8B6040':'#6a7a8a';
+  ctx.fillStyle=wallCol;
+  ctx.fillRect(0,0,INDOOR_W,30); // top
+  ctx.fillRect(0,0,30,INDOOR_H); // left
+  ctx.fillRect(INDOOR_W-30,0,30,INDOOR_H); // right
+  ctx.fillRect(0,INDOOR_H-30,INDOOR_W,30); // bottom
+  // Door in bottom center
+  ctx.fillStyle='#6B3E10';
+  ctx.beginPath();ctx.roundRect(INDOOR_W/2-28,INDOOR_H-32,56,34,4);ctx.fill();
+  ctx.strokeStyle='#3a1a00';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='rgba(200,160,80,0.3)';ctx.fillRect(INDOOR_W/2-26,INDOOR_H-30,52,32);
+  ctx.fillStyle='#c8a020';ctx.beginPath();ctx.arc(INDOOR_W/2+14,INDOOR_H-16,4,0,Math.PI*2);ctx.fill();
+  // Door E prompt
+  ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.roundRect(INDOOR_W/2-10,INDOOR_H-60,20,16,4);ctx.fill();
+  ctx.fillStyle='#333';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('E',INDOOR_W/2,INDOOR_H-48);
+  ctx.textAlign='left';
+  // Wall art
+  if(bld==='station'){
+    // Wanted poster
+    ctx.fillStyle='#f4e8c0';ctx.beginPath();ctx.roundRect(INDOOR_W/2-30,35,60,80,2);ctx.fill();
+    ctx.strokeStyle='#8B4513';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#cc2222';ctx.font='bold 8px Arial';ctx.textAlign='center';ctx.fillText('WANTED',INDOOR_W/2,55);
+    ctx.fillStyle='#333';ctx.font='7px Arial';ctx.fillText('BOB DUCK',INDOOR_W/2,105);
+    // Draw tiny Bob face on poster
+    ctx.save();ctx.translate(INDOOR_W/2,78);ctx.scale(0.28,0.28);
+    drawBobDuck(0,0,'right',null,0,false);ctx.restore();
+    ctx.textAlign='left';
+    // Flag
+    ctx.fillStyle='#3a3a9a';ctx.fillRect(INDOOR_W-60,35,36,24);
+    ctx.fillStyle='white';ctx.font='bold 7px Arial';ctx.textAlign='center';ctx.fillText('PARK',INDOOR_W-42,51);ctx.textAlign='left';
+  } else {
+    // Store sign above door area
+    ctx.fillStyle='#e8c060';ctx.beginPath();ctx.roundRect(INDOOR_W/2-70,35,140,30,4);ctx.fill();
+    ctx.strokeStyle='#8B6014';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#5a2a00';ctx.font='bold 12px "Comic Sans MS",cursive';ctx.textAlign='center';
+    ctx.fillText('🏕️ CAMP STORE 🏕️',INDOOR_W/2,56);ctx.textAlign='left';
+  }
+  // Furniture
+  drawIndoorFurniture(bld);
+  // Items
+  for(const item of indoorItems) drawIndoorItem(item,frame);
+  // Indoor ranger
+  if(indoorRanger){
+    const r=indoorRanger;
+    // Alert cone
+    if(r.alert>0.05){
+      ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.angle);
+      ctx.beginPath();ctx.moveTo(0,0);
+      ctx.arc(0,0,r.range,- Math.PI/2.5,Math.PI/2.5);ctx.closePath();
+      ctx.fillStyle=`rgba(255,${r.alert>0.7?50:200},0,${0.08+r.alert*0.15})`;ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();ctx.translate(r.x,r.y);ctx.scale(0.7,0.7);
+    drawBoxRanger(0,0,r.dir,r.alert,'default',r.frame);
+    ctx.restore();
+    // Alert bar
+    if(r.alert>0.1){
+      const bars=5;
+      for(let i=0;i<bars;i++){
+        ctx.fillStyle=i/bars<r.alert?(r.alert>0.7?'#ff4444':'#FFD700'):'rgba(255,255,255,0.2)';
+        ctx.beginPath();ctx.roundRect(r.x-18+i*8,r.y-75,6,8,1);ctx.fill();
+      }
+    }
+  }
+  // Player
+  ctx.save();ctx.translate(indoorPlayer.x,indoorPlayer.y);ctx.scale(0.75,0.75);
+  drawBobDuck(0,0,indoorPlayer.dir,player.disguise,indoorPlayer.frame,indoorPlayer.moving);
+  ctx.restore();
+  // HUD overlay
+  ctx.fillStyle='rgba(0,0,0,0.65)';ctx.beginPath();ctx.roundRect(10,10,260,50,8);ctx.fill();
+  ctx.fillStyle='white';ctx.font='bold 13px "Comic Sans MS",cursive';ctx.textAlign='left';
+  const lootLeft=indoorItems.filter(i=>!i.taken).length;
+  const bldName=bld==='store'?'Camp Store':'Ranger Station';
+  ctx.fillText('📦 '+bldName,20,30);
+  ctx.fillStyle='#FFD700';ctx.font='11px Arial';
+  ctx.fillText(`Loot remaining: ${lootLeft} | Score: ${player.score}`,20,50);
+  if(bld==='station'){
+    ctx.fillStyle='#ff8888';ctx.font='10px Arial';
+    ctx.fillText('⚠️ Ranger inside!',20,64);
+  }
+}
+
+function drawIndoorFurniture(bld){
+  const furn=INDOOR_FURNITURE[bld]||[];
+  for(const f of furn){
+    if(f.label==='shelf'){
+      ctx.fillStyle=bld==='store'?'#8B5E3C':'#7a6a50';
+      ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,3);ctx.fill();
+      ctx.strokeStyle='#3a2010';ctx.lineWidth=2;ctx.stroke();
+      // Shelf planks
+      ctx.fillStyle=bld==='store'?'#a07040':'#9a8a68';
+      ctx.beginPath();ctx.roundRect(f.x+4,f.y+6,f.w-8,8,1);ctx.fill();
+      ctx.beginPath();ctx.roundRect(f.x+4,f.y+f.h-14,f.w-8,8,1);ctx.fill();
+    } else if(f.label==='desk'){
+      ctx.fillStyle='#8B5E3C';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,4);ctx.fill();
+      ctx.strokeStyle='#3a2010';ctx.lineWidth=2.5;ctx.stroke();
+      ctx.fillStyle='#a07040';ctx.beginPath();ctx.roundRect(f.x+6,f.y+6,f.w-12,f.h-12,2);ctx.fill();
+      // Monitor
+      ctx.fillStyle='#222';ctx.beginPath();ctx.roundRect(f.x+f.w/2-18,f.y+4,36,28,3);ctx.fill();
+      ctx.fillStyle='#1a6ecc';ctx.fillRect(f.x+f.w/2-14,f.y+7,28,20);
+      ctx.fillStyle='#0af';ctx.font='bold 6px monospace';ctx.textAlign='center';
+      ctx.fillText('PARK CAM',f.x+f.w/2,f.y+20);ctx.textAlign='left';
+    } else if(f.label==='cabinet'){
+      ctx.fillStyle='#7a8a7a';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,3);ctx.fill();
+      ctx.strokeStyle='#444';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#888';ctx.fillRect(f.x+4,f.y+f.h/2-1,f.w-8,2);
+      ctx.fillStyle='#aaa';ctx.beginPath();ctx.arc(f.x+f.w/2,f.y+f.h/4,5,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(f.x+f.w/2,f.y+f.h*3/4,5,0,Math.PI*2);ctx.fill();
+    } else if(f.label==='locker'){
+      ctx.fillStyle='#5a6a8a';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,3);ctx.fill();
+      ctx.strokeStyle='#2a3a5a';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#7a8aaa';ctx.beginPath();ctx.arc(f.x+f.w/2,f.y+20,5,0,Math.PI*2);ctx.fill();
+    } else if(f.label==='counter'){
+      ctx.fillStyle='#c8a870';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,4);ctx.fill();
+      ctx.strokeStyle='#8B6030';ctx.lineWidth=2.5;ctx.stroke();
+      ctx.fillStyle='rgba(180,220,255,0.3)';ctx.beginPath();ctx.roundRect(f.x+4,f.y+4,f.w-8,f.h-8,3);ctx.fill();
+    } else if(f.label==='table'){
+      ctx.fillStyle='#a07040';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,4);ctx.fill();
+      ctx.strokeStyle='#6a4010';ctx.lineWidth=2;ctx.stroke();
+    } else if(f.label==='register'){
+      ctx.fillStyle='#333';ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,4);ctx.fill();
+      ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#1a8a1a';ctx.fillRect(f.x+8,f.y+6,f.w-16,f.h-20);
+      ctx.fillStyle='#0f0';ctx.font='bold 7px monospace';ctx.textAlign='center';
+      ctx.fillText('$$$',f.x+f.w/2,f.y+18);ctx.textAlign='left';
+    }
+  }
+}
+
+function drawIndoorItem(item,frame){
+  if(item.taken) return;
+  const p=Math.sin(frame*0.07+item.x)*3;
+  ctx.save();ctx.translate(item.x,item.y+p);
+  // Glow
+  ctx.fillStyle='rgba(255,215,0,0.15)';ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();
+  // Icon
+  ctx.font='22px Arial';ctx.textAlign='center';ctx.fillText(item.icon,0,8);
+  // E prompt
+  ctx.fillStyle='rgba(255,255,255,0.92)';ctx.beginPath();ctx.roundRect(-8,-28,16,15,3);ctx.fill();
+  ctx.fillStyle='#333';ctx.font='bold 9px Arial';ctx.fillText('E',0,-17);
+  // Label
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.beginPath();ctx.roundRect(-40,-46,80,16,4);ctx.fill();
+  ctx.fillStyle='#FFD700';ctx.font='bold 8px Arial';ctx.fillText(item.label,0,-35);
+  ctx.textAlign='left';
+  ctx.restore();
+}
+
+function handleIndoorInteract(){
+  // Exit via door
+  if(indoorPlayer.y>INDOOR_H-120&&Math.abs(indoorPlayer.x-INDOOR_W/2)<60){
+    GS='playing';
+    indoorBuilding=null;
+    showNotif('Back outside!');
+    return;
+  }
+  // Steal item
+  for(const item of indoorItems){
+    if(!item.taken&&Math.sqrt((indoorPlayer.x-item.x)**2+(indoorPlayer.y-item.y)**2)<48){
+      item.taken=true;
+      player.score+=item.pts;
+      player.food++; // counts toward food goal
+      showNotif(`${item.icon} ${item.label} stolen! +${item.pts}pts`);
+      if(player.food>=FOOD_GOAL){setTimeout(()=>{GS='win';winAnim=0;},400);}
+      return;
+    }
+  }
+}
+
 // ===== MAIN LOOP =====
 function loop(){
   frame++;
   ctx.clearRect(0,0,W,H);
 
   if(GS==='menu'){drawMenu();requestAnimationFrame(loop);return;}
+
+  // Indoor update + draw
+  if(GS==='indoor'){
+    updateIndoorPlayer();
+    const rc=updateIndoorRanger();
+    if(rc==='caught'&&!(indoorPlayer.inv>0)){
+      player.lives--;
+      if(player.lives<=0){GS='gameover';}
+      else{
+        player.inv=220;indoorPlayer.inv=220;
+        GS='caught';caughtAnim=0;
+      }
+    }
+    ctx.clearRect(0,0,W,H);
+    drawIndoorRoom();
+    requestAnimationFrame(loop);
+    return;
+  }
 
   // Update
   if(GS==='playing'||GS==='dialog'){
