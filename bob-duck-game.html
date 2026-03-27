@@ -800,25 +800,27 @@ function drawDecorLayer(camX,camY,layer){
       if(d.type==='station'){
         // Entry prompt near door
         const dp2=Math.sin(frame*0.07)*2;
-        const doorSx=(17*TILE+TILE/2)-camX, doorSy=17*TILE-camY;
-        if(Math.abs(doorSx-(W/2))<200&&Math.abs(doorSy-(H/2))<200){
-          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.beginPath();ctx.roundRect(doorSx-44,doorSy-38+dp2,88,16,4);ctx.fill();
-          ctx.fillStyle='#FFD700';ctx.font='bold 9px Arial';ctx.textAlign='center';
-          ctx.fillText('🚨 Ranger Station',doorSx,doorSy-27+dp2);ctx.textAlign='left';
-          ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.roundRect(doorSx-8,doorSy-56+dp2,16,15,3);ctx.fill();
-          ctx.fillStyle='#333';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-45+dp2);ctx.textAlign='left';
+        const doorSx=(17*TILE+TILE/2)-camX, doorSy=14*TILE-camY;
+        if(doorSx>-80&&doorSx<W+80&&doorSy>-80&&doorSy<H+80){
+          const dp3=Math.sin(frame*0.07)*2;
+          ctx.fillStyle='rgba(0,0,0,0.78)';ctx.beginPath();ctx.roundRect(doorSx-46,doorSy-52+dp3,92,18,4);ctx.fill();
+          ctx.fillStyle='#FFD700';ctx.font='bold 10px Arial';ctx.textAlign='center';
+          ctx.fillText('🚨 Ranger Station',doorSx,doorSy-39+dp3);ctx.textAlign='left';
+          ctx.fillStyle='rgba(255,255,255,0.92)';ctx.beginPath();ctx.roundRect(doorSx-9,doorSy-72+dp3,18,16,3);ctx.fill();
+          ctx.fillStyle='#333';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-60+dp3);ctx.textAlign='left';
         }
       }
       if(d.type==='store') drawStore(sx,sy);
       if(d.type==='store'){
         const dp2=Math.sin(frame*0.07)*2;
-        const doorSx=(4*TILE+TILE/2)-camX, doorSy=17*TILE-camY;
-        if(Math.abs(doorSx-(W/2))<200&&Math.abs(doorSy-(H/2))<200){
-          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.beginPath();ctx.roundRect(doorSx-38,doorSy-38+dp2,76,16,4);ctx.fill();
-          ctx.fillStyle='#FFD700';ctx.font='bold 9px Arial';ctx.textAlign='center';
-          ctx.fillText('🏕️ Camp Store',doorSx,doorSy-27+dp2);ctx.textAlign='left';
-          ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.roundRect(doorSx-8,doorSy-56+dp2,16,15,3);ctx.fill();
-          ctx.fillStyle='#333';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-45+dp2);ctx.textAlign='left';
+        const doorSx=(4*TILE+TILE/2)-camX, doorSy=14*TILE-camY;
+        if(doorSx>-80&&doorSx<W+80&&doorSy>-80&&doorSy<H+80){
+          const dp3=Math.sin(frame*0.07)*2;
+          ctx.fillStyle='rgba(0,0,0,0.78)';ctx.beginPath();ctx.roundRect(doorSx-40,doorSy-52+dp3,80,18,4);ctx.fill();
+          ctx.fillStyle='#FFD700';ctx.font='bold 10px Arial';ctx.textAlign='center';
+          ctx.fillText('🏕️ Camp Store',doorSx,doorSy-39+dp3);ctx.textAlign='left';
+          ctx.fillStyle='rgba(255,255,255,0.92)';ctx.beginPath();ctx.roundRect(doorSx-9,doorSy-72+dp3,18,16,3);ctx.fill();
+          ctx.fillStyle='#333';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('E',doorSx,doorSy-60+dp3);ctx.textAlign='left';
         }
       }
     } else {
@@ -1222,12 +1224,12 @@ function handleInteract(){
     }
     // Check building entry
     // Store door: tile (4,17) center
-    const storeDoor={x:4*TILE+TILE/2,y:17*TILE};
-    const stationDoor={x:17*TILE+TILE/2,y:17*TILE};
-    if(d2(player.x,player.y,storeDoor.x,storeDoor.y)<56){
+    const storeDoor={x:4*TILE+TILE/2,y:14*TILE};
+    const stationDoor={x:17*TILE+TILE/2,y:14*TILE};
+    if(d2(player.x,player.y,storeDoor.x,storeDoor.y)<80){
       enterBuilding('store'); return;
     }
-    if(d2(player.x,player.y,stationDoor.x,stationDoor.y)<56){
+    if(d2(player.x,player.y,stationDoor.x,stationDoor.y)<80){
       enterBuilding('station'); return;
     }
     // Check NPCs
