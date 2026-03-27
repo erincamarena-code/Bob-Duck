@@ -672,10 +672,9 @@ function initDecor(){
   DECOR.push({type:'table',x:14*TILE,y:8*TILE});
   DECOR.push({type:'table',x:19*TILE,y:7*TILE});
   // Cars
-  DECOR.push({type:'car',x:6*TILE,y:13.5*TILE,col:'#e74c3c'});
-  DECOR.push({type:'car',x:10*TILE,y:13.5*TILE,col:'#3498db'});
-  DECOR.push({type:'car',x:14*TILE,y:13.5*TILE,col:'#2ecc71'});
-  DECOR.push({type:'car',x:19*TILE,y:13.5*TILE,col:'#f1c40f'});
+  // Cars and bicycles are now VEHICLES (interactive), not static DECOR
+  // Bicycles near camp entrance
+
   // Ranger station
   DECOR.push({type:'station',x:17*TILE,y:15*TILE});
   // Campsite store
@@ -725,6 +724,38 @@ function drawCar(x,y,col){
     ctx.beginPath();ctx.arc(x+wx,y+wy,4,0,Math.PI*2);ctx.fillStyle='#888';ctx.fill();ctx.fillStyle='#333';
   }
 }
+function drawBicycle(x,y,col,stolen){
+  ctx.save(); ctx.translate(x,y);
+  if(stolen){ ctx.fillStyle='rgba(255,255,0,0.18)'; ctx.beginPath(); ctx.arc(0,0,32,0,Math.PI*2); ctx.fill(); }
+  const SK='#1a1a1a';
+  // Wheels
+  for(const wx of[-22,22]){
+    ctx.beginPath(); ctx.arc(wx,6,13,0,Math.PI*2);
+    ctx.strokeStyle=SK; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(wx,6,4,0,Math.PI*2);
+    ctx.fillStyle='#888'; ctx.fill(); ctx.strokeStyle=SK; ctx.lineWidth=2; ctx.stroke();
+    // Spokes
+    for(let s=0;s<4;s++){
+      const a=s*Math.PI/4;
+      ctx.beginPath(); ctx.moveTo(wx,6); ctx.lineTo(wx+Math.cos(a)*11,6+Math.sin(a)*11);
+      ctx.strokeStyle='#aaa'; ctx.lineWidth=1.5; ctx.stroke();
+    }
+  }
+  // Frame
+  ctx.beginPath(); ctx.moveTo(-22,6); ctx.lineTo(0,-10); ctx.lineTo(22,6);
+  ctx.strokeStyle=col; ctx.lineWidth=4; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(0,6);
+  ctx.strokeStyle=col; ctx.lineWidth=4; ctx.stroke();
+  // Seat
+  ctx.beginPath(); ctx.roundRect(-8,-18,16,4,2);
+  ctx.fillStyle='#333'; ctx.fill(); ctx.strokeStyle=SK; ctx.lineWidth=1.5; ctx.stroke();
+  // Handlebars
+  ctx.beginPath(); ctx.moveTo(22,6); ctx.lineTo(22,-8);
+  ctx.strokeStyle=SK; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(16,-8); ctx.lineTo(28,-8);
+  ctx.strokeStyle=SK; ctx.lineWidth=3.5; ctx.stroke();
+  ctx.restore();
+}
 function drawStation(x,y){
   ctx.fillStyle='#c4a66e';ctx.beginPath();ctx.roundRect(x-52,y-55,104,72,4);ctx.fill();
   ctx.strokeStyle='#1a1a1a';ctx.lineWidth=2.5;ctx.stroke();
@@ -762,7 +793,8 @@ function drawDecorLayer(camX,camY,layer){
     const sx=d.x-camX, sy=d.y-camY;
     if(sx<-120||sx>W+120||sy<-120||sy>H+120) continue;
     if(layer==='ground'){
-      if(d.type==='car') drawCar(sx,sy,d.col);
+      if(d.type==='car') drawCar(sx,sy,d.col,false);
+      if(d.type==='bicycle') drawBicycle(sx,sy,d.col,false);
       if(d.type==='table') drawTable(sx,sy);
       if(d.type==='station') drawStation(sx,sy);
       if(d.type==='store') drawStore(sx,sy);
@@ -822,6 +854,78 @@ const DISGUISES=[
   {tx:22,ty:3,type:'beret',taken:false},
   {tx:12,ty:11,type:'partyhat',taken:false},
 ];
+
+// ===== VEHICLES =====
+const VEHICLES=[
+  {type:'car',  x:6*TILE+TILE/2,  y:13.5*TILE, col:'#e74c3c', stolen:false},
+  {type:'car',  x:10*TILE+TILE/2, y:13.5*TILE, col:'#3498db', stolen:false},
+  {type:'car',  x:14*TILE+TILE/2, y:13.5*TILE, col:'#2ecc71', stolen:false},
+  {type:'car',  x:19*TILE+TILE/2, y:13.5*TILE, col:'#f1c40f', stolen:false},
+  {type:'bicycle', x:4*TILE+TILE/2,  y:11*TILE, col:'#e74c3c', stolen:false},
+  {type:'bicycle', x:7*TILE+TILE/2,  y:11*TILE, col:'#aa44ff', stolen:false},
+  {type:'bicycle', x:20*TILE+TILE/2, y:11*TILE, col:'#ff8800', stolen:false},
+];
+
+function drawVehiclePickup(v,camX,camY,frame){
+  const sx=v.x-camX, sy=v.y-camY;
+  if(sx<-120||sx>W+120||sy<-120||sy>H+120) return;
+  const p=Math.sin(frame*0.07)*2;
+  // Highlight glow when available
+  if(!v.stolen){
+    ctx.fillStyle=`rgba(255,220,80,${0.08+Math.sin(frame*0.05)*0.06})`;
+    ctx.beginPath(); ctx.arc(sx,sy+p,v.type==='car'?42:36,0,Math.PI*2); ctx.fill();
+  }
+  if(v.type==='car') drawCar(sx,sy+p,v.col);
+  else drawBicycle(sx,sy+p,v.col,false);
+  // E prompt when available and player nearby
+  if(!v.stolen){
+    ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.beginPath(); ctx.roundRect(sx-8,sy-44+p,16,15,3); ctx.fill();
+    ctx.fillStyle='#333'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText('E',sx,sy-33+p);
+    const label=v.type==='car'?'🚗 Steal Car':'🚲 Steal Bike';
+    ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.roundRect(sx-40,sy-62+p,80,16,4); ctx.fill();
+    ctx.fillStyle='#FFD700'; ctx.font='bold 9px Arial'; ctx.fillText(label,sx,sy-51+p);
+    ctx.textAlign='left';
+  }
+}
+
+function drawBobInVehicle(px,py,camX,camY,dir,vehicle,frame){
+  const sx=px-camX, sy=py-camY;
+  ctx.save(); ctx.translate(sx,sy);
+  if(vehicle.type==='car'){
+    // Draw car around Bob
+    const flip=dir==='left'?-1:1;
+    if(dir==='left') ctx.scale(-1,1);
+    drawCar(0,0,vehicle.col);
+    // Bob peeking out of window
+    ctx.save(); ctx.translate(flip*(dir==='left'?8:-8),-20);
+    ctx.scale(0.55,0.55);
+    drawBobDuck(0,0,dir,null,frame,true);
+    ctx.restore();
+    // Speed lines when moving
+    if(frame%3===0){
+      ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=2;
+      for(let i=0;i<3;i++){
+        const lx=(dir==='left'?1:-1)*(36+i*10), ly=-10+i*10;
+        ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+(dir==='left'?12:-12),ly);
+        ctx.stroke();
+      }
+    }
+  } else {
+    // Bicycle — Bob sitting on top
+    const flip=dir==='left'?-1:1;
+    if(dir==='left') ctx.scale(-1,1);
+    drawBicycle(0,8,vehicle.col,false);
+    ctx.save(); ctx.translate(0,-16); ctx.scale(0.65,0.65);
+    drawBobDuck(0,0,dir,null,frame,true);
+    ctx.restore();
+    // Wheel spin blur
+    ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=2;
+    for(const wx of[-22,22]){
+      ctx.beginPath(); ctx.arc(wx,14,12,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 
 function drawDisguisePick(d,camX,camY,frame){
   if(d.taken) return;
@@ -940,10 +1044,11 @@ class Ranger{
 // ===== PLAYER =====
 class Player{
   constructor(){
-    this.x=8*TILE+TILE/2; this.y=7*TILE+TILE/2; this.inv=180;
+    this.x=8*TILE+TILE/2; this.y=7*TILE+TILE/2;
     this.dir='right'; this.spd=3.2; this.frame=0;
     this.moving=false; this.disguise=null; this.lives=3;
-    this.food=0; this.score=0; this.inv=0; this.cflash=0;
+    this.food=0; this.score=0; this.inv=180; this.cflash=0;
+    this.vehicle=null; // currently stolen vehicle
   }
   update(){
     this.frame++; if(this.inv>0)this.inv--; if(this.cflash>0)this.cflash--;
@@ -954,7 +1059,8 @@ class Player{
     if(keys['ArrowDown']||keys['s']||keys['S']){dy=1;this.dir='down';}
     if(dx&&dy){dx*=0.707;dy*=0.707;}
     this.moving=!!(dx||dy);
-    const spd=isForest(this.x,this.y)?this.spd*0.75:this.spd;
+    const baseSpd = this.vehicle ? (this.vehicle.type==='car'?9.0:5.5) : this.spd;
+    const spd=(!this.vehicle&&isForest(this.x,this.y))?baseSpd*0.75:baseSpd;
     const nx=this.x+dx*spd, ny=this.y+dy*spd;
     if(!isWall(nx,this.y)&&nx>10&&nx<MW*TILE-10) this.x=nx;
     if(!isWall(this.x,ny)&&ny>10&&ny<MH*TILE-10) this.y=ny;
@@ -962,7 +1068,11 @@ class Player{
   draw(camX,camY){
     const sx=this.x-camX, sy=this.y-camY;
     if(this.inv>0&&Math.floor(this.inv/6)%2===1){ctx.save();ctx.globalAlpha=0.35;}
-    drawBobDuck(sx,sy,this.dir,this.disguise,this.frame,this.moving);
+    if(this.vehicle){
+      drawBobInVehicle(this.x,this.y,camX,camY,this.dir,this.vehicle,this.frame);
+    } else {
+      drawBobDuck(sx,sy,this.dir,this.disguise,this.frame,this.moving);
+    }
     if(this.inv>0&&Math.floor(this.inv/6)%2===1) ctx.restore();
     if(this.cflash>0){
       ctx.save();ctx.globalAlpha=this.cflash/40*0.45;
@@ -1009,6 +1119,14 @@ function initGame(){
     new Ranger(6,15,[[4,13],[9,13],[9,17],[4,17]],'christmas'),
     new Ranger(19,5,[[18,5],[22,5],[22,9],[18,9]],'knight'),
   ];
+  for(const v of VEHICLES){v.stolen=false; v.x=v.type==='car'?[6,10,14,19][VEHICLES.filter(x=>x.type==='car').indexOf(v)]*TILE+TILE/2:v.x; }
+  VEHICLES[0].x=6*TILE+TILE/2;  VEHICLES[0].y=13.5*TILE;
+  VEHICLES[1].x=10*TILE+TILE/2; VEHICLES[1].y=13.5*TILE;
+  VEHICLES[2].x=14*TILE+TILE/2; VEHICLES[2].y=13.5*TILE;
+  VEHICLES[3].x=19*TILE+TILE/2; VEHICLES[3].y=13.5*TILE;
+  VEHICLES[4].x=4*TILE+TILE/2;  VEHICLES[4].y=11*TILE;
+  VEHICLES[5].x=7*TILE+TILE/2;  VEHICLES[5].y=11*TILE;
+  VEHICLES[6].x=20*TILE+TILE/2; VEHICLES[6].y=11*TILE;
   foods=[
     new Food(7,6,'basket'),new Food(10,7,'basket'),new Food(13,6,'basket'),
     new Food(16,7,'basket'),new Food(19,6,'basket'),
@@ -1037,6 +1155,26 @@ function handleInteract(){
   }
   if(GS==='win'||GS==='gameover'){initGame();return;}
   if(GS==='playing'){
+    // Exit current vehicle
+    if(player.vehicle){
+      player.vehicle.stolen=false;
+      player.vehicle.x=player.x;
+      player.vehicle.y=player.y;
+      player.vehicle=null;
+      showNotif('Jumped out!');
+      return;
+    }
+    // Steal vehicle
+    for(const v of VEHICLES){
+      if(!v.stolen&&d2(player.x,player.y,v.x,v.y)<(v.type==='car'?60:50)){
+        v.stolen=true;
+        player.vehicle=v;
+        const spd=v.type==='car'?'🚗 VROOM! 3x speed!':'🚲 Wheelin! 1.7x speed!';
+        showNotif(spd);
+        player.score+=50;
+        return;
+      }
+    }
     // Check food
     for(const f of foods){
       if(!f.taken&&d2(player.x,player.y,f.x,f.y)<55){
@@ -1065,6 +1203,17 @@ function handleInteract(){
 
 function handleDisguise(){
   if(GS!=='playing') return;
+  // Vehicle HUD
+  if(player.vehicle){
+    const vicon=player.vehicle.type==='car'?'🚗':'🚲';
+    const vspd=player.vehicle.type==='car'?'3x SPEED':'1.7x SPEED';
+    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.beginPath(); ctx.roundRect(W-160,10,150,38,8); ctx.fill();
+    ctx.fillStyle='#FFD700'; ctx.font='bold 11px "Comic Sans MS",cursive'; ctx.textAlign='right';
+    ctx.fillText(vicon+' '+vspd,W-16,28);
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px Arial';
+    ctx.fillText('[E] to exit',W-16,42);
+    ctx.textAlign='left';
+  }
   if(player.disguise){player.disguise=null;showNotif('Disguise removed - stay hidden!');}
   else if(currentHat){player.disguise=currentHat;showNotif('Disguise back on!');}
 }
@@ -1088,6 +1237,17 @@ function drawHUD(){
   ctx.fillStyle='#aaffaa';ctx.font='bold 13px "Comic Sans MS",cursive';
   ctx.fillText(`Score: ${player.score}`,20,76);
   // Disguise
+  // Vehicle HUD
+  if(player.vehicle){
+    const vicon=player.vehicle.type==='car'?'🚗':'🚲';
+    const vspd=player.vehicle.type==='car'?'3x SPEED':'1.7x SPEED';
+    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.beginPath(); ctx.roundRect(W-160,10,150,38,8); ctx.fill();
+    ctx.fillStyle='#FFD700'; ctx.font='bold 11px "Comic Sans MS",cursive'; ctx.textAlign='right';
+    ctx.fillText(vicon+' '+vspd,W-16,28);
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px Arial';
+    ctx.fillText('[E] to exit',W-16,42);
+    ctx.textAlign='left';
+  }
   if(player.disguise){
     ctx.fillStyle='rgba(0,180,90,0.85)';ctx.beginPath();ctx.roundRect(W-155,10,145,42,8);ctx.fill();
     ctx.fillStyle='white';ctx.font='bold 12px "Comic Sans MS",cursive';ctx.textAlign='center';
@@ -1271,6 +1431,8 @@ function loop(){
   for(const r of rangers) r.drawCone(camX,camY);
 
   // Food
+  // Draw available (not stolen) vehicles with E prompts
+  for(const v of VEHICLES) if(!v.stolen) drawVehiclePickup(v,camX,camY,frame);
   for(const f of foods) f.draw(camX,camY,frame);
 
   // Disguise pickups
